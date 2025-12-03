@@ -1,9 +1,8 @@
-// extension.js — clean VS Code activation script for AI ToolShed
-
 const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
 const { startServers, stopServers, restart } = require("./commands.js");
+const cp = require("child_process");
 
 let venvInfo = null;
 
@@ -28,13 +27,32 @@ function activate(context) {
         return;
     }
 
+    // Start orchestrator + watcher
     startServers(python, ragRoot, workspaceRoot);
 
+    // Restart command
     const restartCmd = vscode.commands.registerCommand("ai-toolshed.restart", () => {
         restart(context, venvInfo);
     });
 
+    // Rebuild Index command
+    const rebuildCmd = vscode.commands.registerCommand("ai-toolshed.rebuildIndex", () => {
+        const script = path.join(installRoot, "scripts", "rebuild_index.ps1");
+
+        cp.spawn("powershell.exe", [
+            "-ExecutionPolicy", "Bypass",
+            "-File", script
+        ], {
+            cwd: installRoot,
+            detached: true,
+            stdio: "ignore"
+        });
+
+        vscode.window.showInformationMessage("AI ToolShed: Rebuilding index…");
+    });
+
     context.subscriptions.push(restartCmd);
+    context.subscriptions.push(rebuildCmd);
 }
 
 function deactivate() {
