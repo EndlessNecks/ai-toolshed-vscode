@@ -1,52 +1,44 @@
-# ---------------------------------------------
-# AI ToolShed - Rebuild RAG Index
-# ---------------------------------------------
+# =============================================
+# AI ToolShed — Rebuild Full Index
+# Reindexes ONLY: <INSTALL_ROOT>/workspace_files
+# =============================================
+
 $ErrorActionPreference = "Stop"
 
-Write-Host "`n=== AI ToolShed: Rebuilding RAG Index ===" -ForegroundColor Cyan
+Write-Output "`n=== AI ToolShed: Rebuilding Index ===`n"
 
-# Script root
-$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$ToolShedRoot = Join-Path $ScriptRoot ".." | Resolve-Path
-$EngineRoot   = Join-Path $ToolShedRoot "toolshed\rag_engine"
+# Detect install root from this script's directory
+$ScriptRoot  = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$InstallRoot = Split-Path -Parent $ScriptRoot
 
-Write-Host "Script Root: $ScriptRoot"
-Write-Host "ToolShed Root: $ToolShedRoot"
-Write-Host "Engine Root: $EngineRoot"
-
-# Venv
-$VenvPath = Join-Path $ToolShedRoot "toolshed\.venv"
-$Activate = Join-Path $VenvPath "Scripts\Activate.ps1"
-
-if (-not (Test-Path $Activate)) {
-    Write-Host "ERROR: Virtual environment missing inside extension." -ForegroundColor Red
+# Load venv info
+$VenvInfoPath = Join-Path $InstallRoot "configs\venv_info.json"
+if (-not (Test-Path $VenvInfoPath)) {
+    Write-Error "venv_info.json missing — run setup.ps1 first."
     exit 1
 }
 
-Write-Host "Activating virtual environment..."
-. $Activate
+$info = Get-Content $VenvInfoPath | ConvertFrom-Json
 
-# Python path
-$Python = Join-Path $VenvPath "Scripts\python.exe"
-if (-not (Test-Path $Python)) {
-    Write-Host "ERROR: python.exe missing in venv!" -ForegroundColor Red
-    exit 1
-}
+$python = $info.venv_python
+$ragRoot = $info.rag_engine_root
 
-# Indexer path
-$Indexer = Join-Path $EngineRoot "indexer.py"
+$Indexer = Join-Path $ragRoot "indexer.py"
+
 if (-not (Test-Path $Indexer)) {
-    Write-Host "ERROR: indexer.py missing!" -ForegroundColor Red
+    Write-Error "indexer.py missing: $Indexer"
     exit 1
 }
 
-Write-Host "Running indexer..." -ForegroundColor Cyan
-& $Python $Indexer
+Write-Output "Using Python: $python"
+Write-Output "Indexing root: $(Join-Path $InstallRoot 'workspace_files')"
+Write-Output ""
 
+# Run the full indexer
+& $python $Indexer
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "RAG index build failed with exit code $LASTEXITCODE" -ForegroundColor Red
-    exit 1
+    Write-Error "Index rebuild failed (exit code $LASTEXITCODE)"
+    exit $LASTEXITCODE
 }
 
-Write-Host "`n=== RAG Index Build Complete! ===" -ForegroundColor Green
-exit 0
+Write-Output "`n=== Index Rebuild Complete ===`n"
