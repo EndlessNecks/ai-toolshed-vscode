@@ -1,0 +1,10 @@
+pip>=23.0
+numpy
+requests
+watchdog
+chardet
+qdrant-client
+transformers
+torch
+tqdm
+sentence-transformers

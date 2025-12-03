@@ -1,0 +1,65 @@
+{
+  "name": "ai-toolshed",
+  "displayName": "AI ToolShed - Codestral Context Puller",
+  "description": "Adds a two-way automatic project-wide context injection for Codestral using a local RAG system, it will pull context from your project for Codestral to use, and if needed patch your project file directly. This makes Codestral function exactly like VS Code's Copilot (but local).",
+  "version": "0.0.1",
+  "publisher": "endlessnecks",
+
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EndlessNecks/ai-toolshed-vscode"
+  },
+
+  "license": "GPL-3.0",
+
+  "engines": {
+    "vscode": "^1.84.0"
+  },
+
+  "categories": [
+    "Coding",
+    "AI",
+    "Add-ons",
+    "Python",
+    "Programming Languages",
+    "Productivity"
+  ],
+
+  "icon": "media/icon.png",
+
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:aiToolshed.install",
+    "onCommand:aiToolshed.rebuildIndex"
+  ],
+
+  "main": "./extension.js",
+
+  "contributes": {
+    "commands": [
+      {
+        "command": "aiToolshed.install",
+        "title": "AI ToolShed: Install / Reinitialize"
+      },
+      {
+        "command": "aiToolshed.rebuildIndex",
+        "title": "AI ToolShed: Rebuild RAG Index"
+      }
+    ]
+  },
+
+  "dependencies": {
+    "fs-extra": "^11.2.0",
+    "yaml": "^2.4.5"
+  },
+
+  "files": [
+    "extension.js",
+    "scripts/**/*",
+    "toolshed/**/*",
+    "media/**/*",
+    "node_modules/**/*",
+    "README.md",
+    "LICENSE"
+  ]
+}

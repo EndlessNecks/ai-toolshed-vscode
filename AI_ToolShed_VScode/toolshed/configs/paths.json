@@ -1,0 +1,10 @@
+{
+  "project_root": "__EXTENSION_PATH__/toolshed",
+  "rag_engine": "__EXTENSION_PATH__/toolshed/rag_engine",
+  "configs": "__EXTENSION_PATH__/toolshed/configs",
+  "vector_db": "__EXTENSION_PATH__/toolshed/vector_db",
+  "watchers": "__EXTENSION_PATH__/toolshed/project_watchers",
+  "glue_continue": "__EXTENSION_PATH__/toolshed/glue_continue",
+  "orchestration": "__EXTENSION_PATH__/toolshed/orchestration",
+  "logs": "__EXTENSION_PATH__/toolshed/logs"
+}
