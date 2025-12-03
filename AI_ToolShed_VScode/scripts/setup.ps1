@@ -1,7 +1,7 @@
 # =============================================
 # AI ToolShed Setup Script (FINAL WORKING VERSION)
 # Hard-mapped to your confirmed project layout:
-# D:\AI_Workspace\AI_ToolShed_VScode\toolshed\rag_engine\requirements.txt
+# C:\Program Files\AI_ToolShed_VScode\toolshed\rag_engine\requirements.txt
 # =============================================
 
 $ErrorActionPreference = "Stop"
@@ -11,7 +11,7 @@ Write-Output "`n=== AI ToolShed Python Environment Setup ===`n"
 # ---------------------------------------------
 # PROJECT PATHS (ABSOLUTE — CONFIRMED BY USER)
 # ---------------------------------------------
-$ProjectRoot = "D:\AI_Workspace\AI_ToolShed_VScode"
+$ProjectRoot = "C:\Program Files\AI_ToolShed_VScode"
 $ToolshedRoot = Join-Path $ProjectRoot "toolshed"
 $RagEngineRoot = Join-Path $ToolshedRoot "rag_engine"
 $ReqsFile = Join-Path $RagEngineRoot "requirements.txt"
@@ -135,3 +135,4 @@ Log "Wrote venv info → $VenvInfoPath"
 Write-Output "`n=== AI ToolShed setup completed successfully ===`n"
 Write-Output "Venv Python: $VenvPython"
 Write-Output "Log file:   $LogFile`n"
+
