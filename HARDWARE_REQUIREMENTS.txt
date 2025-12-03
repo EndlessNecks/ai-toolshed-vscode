@@ -1,0 +1,123 @@
+AI ToolShed VSCode - Hardware Requirements (2025)
+=================================================
+
+This document describes the hardware required to run:
+ • LLM inference with Codestral 22B (via Ollama)
+ • Local RAG indexing + retrieval (Qdrant + Python)
+ • AI ToolShed VSCode extension + Continue integration
+
+Included are modern GPUs (including Intel Arc Battlemage Pro cards) released in 2024–2025.
+
+------------------------------------------------------------
+MINIMUM-RECOMMENDED HARDWARE CONFIGURATION
+------------------------------------------------------------
+
+GPU:
+ • ≥ 16 GB VRAM required (strongly recommended minimum for 22B + context)
+ • Compatible GPU examples (2024–2025):
+     - NVIDIA: RTX 3060 / 4060 / 4070 series (16 GB+ models)
+     - AMD: Radeon RX 7000 / 9000 series (16 GB+)
+     - Intel Arc “Battlemage” Pro-series:
+         • Arc Pro B50 — 16 GB GDDR6 VRAM :contentReference[oaicite:2]{index=2}
+         • Arc Pro B60 — 24 GB GDDR6 VRAM :contentReference[oaicite:3]{index=3}
+ • Note: 16 GB VRAM is minimum for basic usage; 24 GB+ gives smoother experience with larger context windows
+
+System RAM:
+ • 32 GB RAM minimum
+ • 64 GB RAM recommended for larger projects or heavy context indexing
+
+CPU:
+ • Any modern x86_64 CPU with AVX2 support
+ • Examples:
+     - AMD: Ryzen 5 5600, 7600, Ryzen 7/9 7000 series, Threadripper 9000 series
+     - Intel: 12th–14th Gen Core (LGA1700), Core Ultra series
+
+Storage:
+ • SSD (NVMe preferred)
+ • At least 40 GB free for model weights, embeddings, indexes
+
+Operating System:
+ • Windows 10/11 64-bit or modern Linux distribution
+ • Python 3.10–3.14 (per project specs)
+
+------------------------------------------------------------
+OPTIMAL RECOMMENDED HARDWARE (FOR BEST EXPERIENCE)
+------------------------------------------------------------
+
+GPU:
+ • 24–32 GB VRAM (for large context, smooth inference)
+ • Examples:
+     - Intel Arc Pro B60 (24 GB)
+     - NVIDIA 24 GB+ cards (RTX 3090, 4090, future Ada/Vega / equivalent)
+     - AMD high-VRAM Radeon GPUs, RDNA4+ generation
+
+System RAM:
+ • 64 GB RAM strongly recommended
+
+CPU:
+ • Multi-core high performance (6+ cores + high single-core speed)
+ • Example:
+     - AMD Ryzen 7/9 (7000/9000 series)
+     - Intel i7/i9 (13th/14th gen), or equivalent
+
+Storage:
+ • NVMe SSD
+ • 100 GB+ free for future expansion
+
+------------------------------------------------------------
+GPU MEMORY USAGE (22B + Context)
+------------------------------------------------------------
+
+ • Codestral 22B (float16 or 8-bit quantized) uses ~13–14 GB VRAM for model weights
+ • Additional VRAM needed for:
+     - activation buffers
+     - context window
+     - model overhead  
+ • With 16 GB VRAM GPU, expect minimal context and possible memory pressure  
+ • With 24 GB+ VRAM GPUs (e.g. Arc Pro B60), long contexts and large batch sizes are practical
+
+------------------------------------------------------------
+CPU-ONLY MODE (if GPU not available)
+------------------------------------------------------------
+
+Possible but not recommended:
+
+ • Requires ≥ 64 GB RAM  
+ • CPU must support AVX2  
+ • Inference will be very slow (~10–50× slower vs GPU) — practical only for small-scale testing  
+
+------------------------------------------------------------
+RAG ENGINE & Qdrant REQUIREMENTS
+------------------------------------------------------------
+
+Embedding/indexing workload:
+ • 4 CPU cores minimum (8+ recommended)  
+ • 16 GB RAM minimum (32 GB+ recommended for large projects)  
+ • Fast SSD for reading/writing many small files  
+ • GPU not required — embedding works via CPU or GPU if available
+
+------------------------------------------------------------
+SUMMARY
+------------------------------------------------------------
+
+Min recommended configuration (2025):
+ • GPU with 16 GB VRAM+ (Intel Arc Pro B50 or similar)  
+ • 32 GB system RAM  
+ • Modern mid-range CPU  
+ • SSD storage  
+
+Recommended for smooth performance:
+ • GPU 24 GB+ VRAM (Intel Arc Pro B60 / high-end NVIDIA/AMD)  
+ • 64 GB RAM  
+ • Multi-core modern CPU  
+ • NVMe SSD  
+
+Ideal workstation setup:
+ • 32–48 GB VRAM GPU  
+ • 64 GB+ RAM  
+ • High-end CPU (Ryzen 9 / Threadripper / Intel i9)  
+ • Fast NVMe SSD  
+
+------------------------------------------------------------
+END OF FILE
+============================================================
