@@ -1,111 +1,207 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+embedder.py — Embedding layer for AI ToolShed RAG.
 
+- Uses sentence-transformers + torch
+- Automatically picks GPU if available (CUDA/ROCm or MPS) else CPU
+- Provides simple helpers:
+    * get_model()
+    * embed_text()
+    * embed_texts()
+
+Dependencies (already in requirements.txt):
+    - torch
+    - sentence-transformers
+    - numpy
 """
-embedder.py — Provides embedding (Ollama → HF fallback)
-"""
+
+from __future__ import annotations
 
 import os
-import sys
-import requests
+import threading
+from pathlib import Path
+from typing import List, Sequence
+
 import numpy as np
 
-# ---------------------------------------------
-# Ensure imports work from inside VSIX venv
-# ---------------------------------------------
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-TOOLSHED_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
-if TOOLSHED_ROOT not in sys.path:
-    sys.path.insert(0, TOOLSHED_ROOT)
-# ---------------------------------------------
+try:
+    import torch
+except ImportError as e:  # pragma: no cover - hard failure
+    raise RuntimeError(
+        "torch is required for embedder.py but is not installed. "
+        "Make sure 'torch' is in rag_engine/requirements.txt and rerun setup."
+    ) from e
 
 try:
     from sentence_transformers import SentenceTransformer
-except ImportError:
-    SentenceTransformer = None
+except ImportError as e:  # pragma: no cover - hard failure
+    raise RuntimeError(
+        "sentence-transformers is required for embedder.py but is not installed. "
+        "Make sure 'sentence-transformers' is in rag_engine/requirements.txt and rerun setup."
+    ) from e
 
 
-# --------------------------------------------------------------
-# OLLAMA GPU EMBEDDINGS (one request per text = correct behavior)
-# --------------------------------------------------------------
-def embed_with_ollama(texts):
-    results = []
-    for t in texts:
-        try:
-            r = requests.post(
-                "http://localhost:11434/api/embeddings",
-                json={"model": "nomic-embed-text", "input": [t]},  # <— FIXED
-                timeout=30,
-            )
-            r.raise_for_status()
+# -------------------------------------------------------------------
+# Configuration
+# -------------------------------------------------------------------
 
-            data = r.json()
-            if "embedding" in data and len(data["embedding"]) > 0:
-                vec = data["embedding"]
-            elif "data" in data and len(data["data"]) > 0:
-                vec = data["data"][0]["embedding"]
-            else:
-                raise ValueError(f"Unexpected Ollama format: {data}")
+# Default model; can be overridden via env without touching code
+_DEFAULT_MODEL_NAME = (
+    os.environ.get("TOOLS_HED_EMBED_MODEL")
+    or "sentence-transformers/all-MiniLM-L6-v2"
+)
 
-            results.append(vec)
+# Thread-safe singleton
+_MODEL_LOCK = threading.Lock()
+_MODEL: SentenceTransformer | None = None
 
-        except Exception as e:
-            print(f"[Embedder] Ollama failed on text '{t[:30]}...': {e}")
-            return None
-
-    return results
+# Optional: cache device string
+_DEVICE: str | None = None
 
 
-# --------------------------------------------------------------
-# HF FALLBACK — MUST BE 768 DIM (same as nomic-embed-text)
-# --------------------------------------------------------------
-def embed_with_hf(texts):
-    if SentenceTransformer is None:
-        return None
-    try:
-        model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
-        emb = model.encode(texts, convert_to_numpy=True)
-        return emb.tolist()
-    except Exception as e:
-        print(f"[Embedder] HF failed: {e}")
-        return None
+# -------------------------------------------------------------------
+# Device resolution
+# -------------------------------------------------------------------
+def _resolve_device() -> str:
+    """
+    Decide which device to run embeddings on.
+
+    Priority:
+      1. TOOLS_HED_EMBED_DEVICE env var (e.g. "cuda", "cuda:0", "cpu")
+      2. torch.cuda.is_available()  -> "cuda"
+      3. torch.backends.mps.is_available() -> "mps"
+      4. Fallback "cpu"
+
+    Works with CUDA *and* ROCm builds of PyTorch, since they both report as "cuda".
+    """
+    env_device = os.environ.get("TOOLS_HED_EMBED_DEVICE", "").strip()
+    if env_device:
+        return env_device
+
+    if torch.cuda.is_available():
+        return "cuda"
+
+    # macOS Metal (not your use case but harmless)
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():  # type: ignore[attr-defined]
+        return "mps"
+
+    return "cpu"
 
 
-# --------------------------------------------------------------
-# MAIN UNIFIED EMBEDDER
-# --------------------------------------------------------------
-def embed_texts(text_list):
-    out = embed_with_ollama(text_list)
-    if out is None:
-        out = embed_with_hf(text_list)
-    if out is None:
-        raise RuntimeError("No embedding backend available")
+# -------------------------------------------------------------------
+# Model loading
+# -------------------------------------------------------------------
+def get_model() -> SentenceTransformer:
+    """
+    Lazily load and return the global SentenceTransformer model.
+    Safe to call from multiple threads.
+    """
+    global _MODEL, _DEVICE
 
-    final = []
-    for text, vec in zip(text_list, out):
-        v = np.array(vec, dtype=np.float32)
-        n = np.linalg.norm(v)
-        if n > 0:
-            v /= n
-        final.append({"text": text, "embedding": v.tolist()})
-    return final
+    if _MODEL is not None:
+        return _MODEL
+
+    with _MODEL_LOCK:
+        if _MODEL is not None:
+            return _MODEL
+
+        model_name = _DEFAULT_MODEL_NAME
+        device = _resolve_device()
+        _DEVICE = device
+
+        # NOTE: SentenceTransformer will move to device automatically if given.
+        # For ROCm builds, 'cuda' is the correct device string.
+        print(f"[embedder] Loading model '{model_name}' on device '{device}'...")
+        model = SentenceTransformer(model_name, device=device)
+        _MODEL = model
+        print("[embedder] Model loaded successfully.")
+
+        return _MODEL
 
 
-def embed_single(text):
-    return embed_texts([text])[0]
+# -------------------------------------------------------------------
+# Embedding helpers
+# -------------------------------------------------------------------
+def embed_texts(
+    texts: Sequence[str],
+    *,
+    batch_size: int = 32,
+    normalize: bool = True,
+    show_progress: bool = False,
+) -> np.ndarray:
+    """
+    Embed a list of texts into a 2D numpy array of shape (n_texts, dim).
+
+    :param texts: Sequence of strings to embed.
+    :param batch_size: Batch size for encoding.
+    :param normalize: If True, L2-normalize embeddings (recommended for cosine distance).
+    :param show_progress: If True, show a progress bar (tqdm) during encoding.
+    :return: np.ndarray of shape (len(texts), embedding_dim)
+    """
+    if not texts:
+        return np.zeros((0, 0), dtype=np.float32)
+
+    model = get_model()
+    # SentenceTransformers handles batching internally.
+    embeddings = model.encode(
+        list(texts),
+        batch_size=batch_size,
+        convert_to_numpy=True,
+        normalize_embeddings=normalize,
+        show_progress_bar=show_progress,
+    )
+
+    # Ensure dtype is float32 for compatibility with most vector DBs
+    if embeddings.dtype != np.float32:
+        embeddings = embeddings.astype(np.float32)
+
+    return embeddings
 
 
-class Embedder:
-    def embed_batch(self, texts):
-        return [x["embedding"] for x in embed_texts(texts)]
+def embed_text(
+    text: str,
+    *,
+    normalize: bool = True,
+) -> np.ndarray:
+    """
+    Convenience wrapper to embed a single text.
 
-    def embed_text(self, text):
-        return embed_single(text)["embedding"]
+    :param text: Input string.
+    :param normalize: If True, L2-normalize embedding.
+    :return: np.ndarray of shape (embedding_dim,)
+    """
+    if not text:
+        # Return a single zero vector if empty; indexer can decide to skip later.
+        emb = embed_texts([""], normalize=normalize)
+    else:
+        emb = embed_texts([text], normalize=normalize)
+
+    # embed_texts() returns (1, dim); we want (dim,)
+    return emb[0]
+
+
+# -------------------------------------------------------------------
+# Small self-test
+# -------------------------------------------------------------------
+def _self_test() -> None:
+    """
+    Quick sanity check when running this file directly:
+      python -m rag_engine.embedder
+    """
+    print("[embedder] Running self-test...")
+    model = get_model()
+    print(f"[embedder] Model device: {_DEVICE}")
+    print(f"[embedder] Model: {type(model).__name__}")
+
+    sample_texts = [
+        "def hello_world(): print('hello')",
+        "Qdrant is a vector database used for semantic search.",
+    ]
+    embs = embed_texts(sample_texts, batch_size=2, show_progress=False)
+    print(f"[embedder] Embedded shape: {embs.shape}")
+    print("[embedder] Self-test OK.")
 
 
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1:
-        print(embed_single(" ".join(sys.argv[1:])))
-    else:
-        print("usage: python embedder.py \"text\"")
+    _self_test()
