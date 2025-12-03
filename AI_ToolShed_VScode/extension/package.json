@@ -10,8 +10,8 @@
   "main": "./extension.js",
   "activationEvents": [
     "onStartupFinished",
-    "onFolderOpened",
-    "onCommand:ai-toolshed.restart"
+    "onCommand:ai-toolshed.restart",
+    "workspaceContains:**"
   ],
   "contributes": {
     "commands": [
@@ -21,8 +21,8 @@
       }
     ]
   },
+  "categories": ["Other"],
   "scripts": {
     "package": "vsce package"
-  },
-  "categories": ["Other"]
+  }
 }
