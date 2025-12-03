@@ -2,11 +2,13 @@
 # -*- coding: utf-8 -*-
 
 """
-orchestrator.py — minimal HTTP server for Continue.ai
+orchestrator.py — HTTP interface for Continue.ai
 Provides:
-  - /context  → returns top-K relevant chunks
-  - /query    → manual semantic search
-Runs locally alongside watcher + RAG engine.
+  - /context → top-K chunks from workspace_files
+  - /query   → manual testing endpoint
+
+All data is pulled exclusively from:
+    <INSTALL_ROOT>/workspace_files
 """
 
 from __future__ import annotations
@@ -15,7 +17,7 @@ import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from rag_engine.retriever import retrieve_relevant_chunks
-from configs.paths import get_workspace_root
+from rag_engine.indexer import get_index_root
 
 
 HOST = "127.0.0.1"
@@ -23,18 +25,19 @@ PORT = 5412
 
 
 # ------------------------------------------------------------
-# Helpers
+# Response helper
 # ------------------------------------------------------------
-
 def _json(data, code=200):
     return code, json.dumps(data).encode("utf-8"), "application/json"
 
 
-# Convert Chunk → Continue context item
+# ------------------------------------------------------------
+# Convert chunk → Continue context item
+# ------------------------------------------------------------
 def _chunk_to_context_item(chunk):
     fp = chunk.metadata.get("file_path", "")
     return {
-        "name": f"{fp}",
+        "name": fp,
         "content": chunk.text
     }
 
@@ -49,7 +52,7 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             data = json.loads(raw.decode("utf-8"))
-        except:
+        except Exception:
             code, body, ct = _json({"error": "invalid json"}, 400)
             self.send_response(code)
             self.send_header("Content-Type", ct)
@@ -57,9 +60,9 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        # -------------------------
-        # /context  (Continue hook)
-        # -------------------------
+        # ----------------------------------------------------
+        # /context — Continue context provider
+        # ----------------------------------------------------
         if self.path == "/context":
             query = data.get("query", "") or data.get("fullInput", "")
             top_k = int(data.get("top_k", 10))
@@ -74,36 +77,38 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        # -------------------------
-        # /query (manual testing)
-        # -------------------------
+        # ----------------------------------------------------
+        # /query — direct testing
+        # ----------------------------------------------------
         if self.path == "/query":
             query = data.get("query", "")
             top_k = int(data.get("top_k", 5))
 
             chunks = retrieve_relevant_chunks(query, top_k=top_k)
 
-            simplified = [{
+            structured = [{
                 "file": ch.metadata.get("file_path"),
                 "score": ch.metadata.get("score"),
                 "text": ch.text
             } for ch in chunks]
 
-            code, body, ct = _json(simplified)
+            code, body, ct = _json(structured)
             self.send_response(code)
             self.send_header("Content-Type", ct)
             self.end_headers()
             self.wfile.write(body)
             return
 
-        # Unknown path
+        # -------------------------
+        # Unknown endpoint
+        # -------------------------
         code, body, ct = _json({"error": "unknown endpoint"}, 404)
         self.send_response(code)
         self.send_header("Content-Type", ct)
         self.end_headers()
         self.wfile.write(body)
 
-    # Silence logs
+    # Silence logging
     def log_message(self, *a):
         return
 
@@ -112,9 +117,12 @@ class Handler(BaseHTTPRequestHandler):
 # Runner
 # ------------------------------------------------------------
 def run():
+    root = get_index_root()
+    print(f"[orchestrator] Using workspace_files: {root}")
+
     server = HTTPServer((HOST, PORT), Handler)
-    print(f"[orchestrator] Running at http://{HOST}:{PORT}")
-    print(f"[orchestrator] Workspace: {get_workspace_root()}")
+    print(f"[orchestrator] Listening on http://{HOST}:{PORT}")
+
     server.serve_forever()
 
 
