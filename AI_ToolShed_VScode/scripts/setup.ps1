@@ -1,7 +1,9 @@
 # =============================================
-# AI ToolShed Setup Script (FINAL WORKING VERSION)
-# Hard-mapped to your confirmed project layout:
-# C:\Program Files\AI_ToolShed_VScode\toolshed\rag_engine\requirements.txt
+# AI ToolShed Setup Script (GENERIC INSTALL VERSION)
+# - Detects install root from this script's location
+# - Creates venv at <INSTALL_ROOT>\toolshed\.venv
+# - Installs requirements from <INSTALL_ROOT>\toolshed\rag_engine\requirements.txt
+# - Writes venv_info.json to <INSTALL_ROOT>\configs\venv_info.json
 # =============================================
 
 $ErrorActionPreference = "Stop"
@@ -9,18 +11,35 @@ $ErrorActionPreference = "Stop"
 Write-Output "`n=== AI ToolShed Python Environment Setup ===`n"
 
 # ---------------------------------------------
-# PROJECT PATHS (ABSOLUTE — CONFIRMED BY USER)
+# DETECT INSTALL ROOT
 # ---------------------------------------------
-$ProjectRoot = "C:\Program Files\AI_ToolShed_VScode"
-$ToolshedRoot = Join-Path $ProjectRoot "toolshed"
-$RagEngineRoot = Join-Path $ToolshedRoot "rag_engine"
-$ReqsFile = Join-Path $RagEngineRoot "requirements.txt"
-$VenvDir = Join-Path $ToolshedRoot ".venv"
-$LogsDir = Join-Path $ProjectRoot "logs"
+# This script is expected at:
+#   <INSTALL_ROOT>\scripts\setup.ps1
+# So install root is the parent of this script's directory.
 
-# Ensure logs dir
+$ScriptRoot  = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$InstallRoot = Split-Path -Parent $ScriptRoot
+
+# Normalized for logs
+Write-Output "Script Root : $ScriptRoot"
+Write-Output "Install Root: $InstallRoot"
+
+# ---------------------------------------------
+# PROJECT PATHS (RELATIVE TO INSTALL ROOT)
+# ---------------------------------------------
+$ToolshedRoot  = Join-Path $InstallRoot "toolshed"
+$RagEngineRoot = Join-Path $ToolshedRoot "rag_engine"
+$ReqsFile      = Join-Path $RagEngineRoot "requirements.txt"
+$VenvDir       = Join-Path $ToolshedRoot ".venv"
+$LogsDir       = Join-Path $InstallRoot "logs"
+$ConfigDir     = Join-Path $InstallRoot "configs"
+
+# Ensure logs/config dirs
 if (-not (Test-Path $LogsDir)) {
     New-Item -ItemType Directory -Path $LogsDir | Out-Null
+}
+if (-not (Test-Path $ConfigDir)) {
+    New-Item -ItemType Directory -Path $ConfigDir | Out-Null
 }
 
 $LogFile = Join-Path $LogsDir "setup.log"
@@ -32,18 +51,18 @@ function Log {
     $line | Tee-Object -FilePath $LogFile -Append
 }
 
-Log "Project root      : $ProjectRoot"
-Log "Toolshed root     : $ToolshedRoot"
-Log "RAG engine root   : $RagEngineRoot"
-Log "Requirements file : $ReqsFile"
-Log "Venv directory    : $VenvDir"
+Log "Install root     : $InstallRoot"
+Log "Toolshed root    : $ToolshedRoot"
+Log "RAG engine root  : $RagEngineRoot"
+Log "Requirements file: $ReqsFile"
+Log "Venv directory   : $VenvDir"
 
 # ---------------------------------------------
 # VALIDATE REQUIREMENTS FILE EXISTS
 # ---------------------------------------------
 if (-not (Test-Path $ReqsFile)) {
     Log "ERROR: Requirements file missing at: $ReqsFile"
-    Write-Error "requirements.txt not found. Check your directory structure."
+    Write-Error "requirements.txt not found. Expected at $ReqsFile"
     exit 1
 }
 
@@ -71,7 +90,7 @@ if (-not (Test-Path $VenvDir)) {
     Log "Creating venv at: $VenvDir"
     & $PythonExe -m venv $VenvDir
     if ($LASTEXITCODE -ne 0) {
-        Log "ERROR: venv creation failed."
+        Log "ERROR: venv creation failed (exit code $LASTEXITCODE)."
         exit $LASTEXITCODE
     }
 } else {
@@ -85,8 +104,8 @@ if (-not (Test-Path $VenvPython)) {
 }
 
 if (-not (Test-Path $VenvPython)) {
-    Log "ERROR: No python in venv."
-    Write-Error "Failed to locate venv Python."
+    Log "ERROR: No python executable in venv."
+    Write-Error "Failed to locate venv Python in $VenvDir"
     exit 1
 }
 
@@ -98,41 +117,36 @@ Log "Venv Python: $VenvPython"
 Log "Upgrading pip..."
 & $VenvPython -m pip install --upgrade pip
 if ($LASTEXITCODE -ne 0) {
-    Log "ERROR: pip upgrade failed."
+    Log "ERROR: pip upgrade failed (exit code $LASTEXITCODE)."
     exit $LASTEXITCODE
 }
 
 # ---------------------------------------------
 # INSTALL REQUIREMENTS
 # ---------------------------------------------
-Log "Installing dependencies..."
+Log "Installing dependencies from $ReqsFile..."
 & $VenvPython -m pip install -r $ReqsFile
 if ($LASTEXITCODE -ne 0) {
-    Log "ERROR installing requirements."
+    Log "ERROR installing requirements (exit code $LASTEXITCODE)."
     exit $LASTEXITCODE
 }
 
 # ---------------------------------------------
 # WRITE VENV INFO FILE
 # ---------------------------------------------
-$ConfigDir = Join-Path $ProjectRoot "configs"
-if (-not (Test-Path $ConfigDir)) {
-    New-Item -ItemType Directory -Path $ConfigDir | Out-Null
-}
-
 $VenvInfoPath = Join-Path $ConfigDir "venv_info.json"
 
 @{
-    project_root = $ProjectRoot
-    toolshed_root = $ToolshedRoot
+    install_root   = $InstallRoot
+    toolshed_root  = $ToolshedRoot
     rag_engine_root = $RagEngineRoot
-    venv_dir = $VenvDir
-    venv_python = $VenvPython
+    venv_dir       = $VenvDir
+    venv_python    = $VenvPython
 } | ConvertTo-Json -Depth 5 | Out-File -FilePath $VenvInfoPath -Encoding UTF8
 
 Log "Wrote venv info → $VenvInfoPath"
 
 Write-Output "`n=== AI ToolShed setup completed successfully ===`n"
-Write-Output "Venv Python: $VenvPython"
-Write-Output "Log file:   $LogFile`n"
-
+Write-Output "Install Root: $InstallRoot"
+Write-Output "Venv Python : $VenvPython"
+Write-Output "Log file    : $LogFile`n"
