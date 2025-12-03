@@ -1,8 +1,7 @@
 const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
-const { startServers, stopServers, restart } = require("./commands.js");
-const cp = require("child_process");
+const { startServers, stopServers, restart, rebuildIndex } = require("./commands.js");
 
 let venvInfo = null;
 
@@ -35,20 +34,9 @@ function activate(context) {
         restart(context, venvInfo);
     });
 
-    // Rebuild Index command
+    // Rebuild index command
     const rebuildCmd = vscode.commands.registerCommand("ai-toolshed.rebuildIndex", () => {
-        const script = path.join(installRoot, "scripts", "rebuild_index.ps1");
-
-        cp.spawn("powershell.exe", [
-            "-ExecutionPolicy", "Bypass",
-            "-File", script
-        ], {
-            cwd: installRoot,
-            detached: true,
-            stdio: "ignore"
-        });
-
-        vscode.window.showInformationMessage("AI ToolShed: Rebuilding index…");
+        rebuildIndex(venvInfo);
     });
 
     context.subscriptions.push(restartCmd);
