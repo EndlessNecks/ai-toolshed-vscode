@@ -1,114 +1,73 @@
-// extension.js
-// AI ToolShed – VS Code Extension
+// extension.js — minimal VS Code glue for AI ToolShed
+// Starts orchestrator + watcher using the installed venv
 
-const vscode = require('vscode');
-const path = require('path');
-const fs = require('fs-extra');
-const { exec } = require('child_process');
+const vscode = require("vscode");
+const cp = require("child_process");
+const fs = require("fs");
+const path = require("path");
+
+let orchestratorProc = null;
+let watcherProc = null;
 
 function activate(context) {
+    const installRoot = path.resolve(__dirname, ".."); // AI_ToolShed_VScode
+    const configDir = path.join(installRoot, "configs");
+    const venvInfoPath = path.join(configDir, "venv_info.json");
 
-    // ----------------------------
-    // Resolve roots
-    // ----------------------------
-    const extensionRoot = context.extensionPath;
-    const toolShedRoot = path.join(extensionRoot, "toolshed");
-    const scriptRoot = path.join(extensionRoot, "scripts");
-
-    console.log("[AI ToolShed] Extension Root:", extensionRoot);
-    console.log("[AI ToolShed] Toolshed Root:", toolShedRoot);
-    console.log("[AI ToolShed] Script Root:", scriptRoot);
-
-    // ----------------------------
-    // Execute a PowerShell script
-    // ----------------------------
-    function runPowerShellScript(scriptPath, callback) {
-        const resolved = scriptPath.replace(/\\/g, "\\\\");
-        const cmd = `powershell.exe -ExecutionPolicy Bypass -Command "& \\"${resolved}\\""`;        
-
-        console.log("[AI ToolShed] Running PowerShell:", cmd);
-
-        exec(cmd, { cwd: scriptRoot, windowsHide: false }, (err, stdout, stderr) => {
-            if (stdout) console.log("[AI ToolShed][stdout]", stdout);
-            if (stderr) console.log("[AI ToolShed][stderr]", stderr);
-
-            if (err) {
-                vscode.window.showErrorMessage("AI ToolShed setup failed. Check console.");
-                console.error("[AI ToolShed] ERROR:", err);
-                return callback(err);
-            }
-
-            callback(null);
-        });
+    if (!fs.existsSync(venvInfoPath)) {
+        vscode.window.showErrorMessage("AI ToolShed: Missing venv_info.json. Run setup.ps1.");
+        return;
     }
 
-    // ----------------------------
-    // Sync Continue config
-    // ----------------------------
-    async function syncContinueConfig() {
-        try {
-            const continueHome = path.join(process.env.USERPROFILE, ".continue");
-            await fs.ensureDir(continueHome);
+    const info = JSON.parse(fs.readFileSync(venvInfoPath, "utf8"));
 
-            const srcCfg = path.join(toolShedRoot, "config.yaml");
-            const dstCfg = path.join(continueHome, "config.yaml");
+    const python = info.venv_python;
+    const ragRoot = info.rag_engine_root;
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
-            console.log("[AI ToolShed] Syncing Continue config →", dstCfg);
-            await fs.copy(srcCfg, dstCfg, { overwrite: true });
-
-        } catch (e) {
-            console.error("[AI ToolShed] Failed copying Continue config:", e);
-        }
+    if (!workspaceRoot) {
+        vscode.window.showErrorMessage("AI ToolShed: No workspace open.");
+        return;
     }
 
-    // ============================
-    // COMMAND: Install / Reinitialize
-    // ============================
-    const installCmd = vscode.commands.registerCommand("aiToolshed.install", async () => {
-        vscode.window.showInformationMessage("AI ToolShed: Beginning install...");
+    // Set workspace override for paths.py
+    const env = {
+        ...process.env,
+        TOOLS_HED_WORKSPACE: workspaceRoot
+    };
 
-        await syncContinueConfig();
-
-        const setupScript = path.join(scriptRoot, "setup.ps1");
-        if (!fs.existsSync(setupScript)) {
-            vscode.window.showErrorMessage("setup.ps1 missing in extension scripts folder.");
-            return;
-        }
-
-        runPowerShellScript(setupScript, (err) => {
-            if (!err) {
-                vscode.window.showInformationMessage("AI ToolShed install completed.");
-            }
-        });
+    // Launch orchestrator
+    const orchPath = path.join(ragRoot, "orchestrator.py");
+    orchestratorProc = cp.spawn(python, [orchPath], {
+        cwd: ragRoot,
+        env,
+        stdio: "ignore",
+        detached: true
     });
 
-    // ============================
-    // COMMAND: Rebuild RAG Index
-    // ============================
-    const rebuildCmd = vscode.commands.registerCommand("aiToolshed.rebuildIndex", async () => {
-        vscode.window.showInformationMessage("AI ToolShed: Rebuilding RAG index...");
-
-        const rebuildScript = path.join(scriptRoot, "rebuild_index.ps1");
-        if (!fs.existsSync(rebuildScript)) {
-            vscode.window.showErrorMessage("rebuild_index.ps1 missing.");
-            return;
-        }
-
-        runPowerShellScript(rebuildScript, (err) => {
-            if (!err) {
-                vscode.window.showInformationMessage("AI ToolShed: RAG index rebuilt.");
-            }
-        });
+    // Launch watcher
+    const watcherPath = path.join(ragRoot, "watcher.py");
+    watcherProc = cp.spawn(python, [watcherPath], {
+        cwd: ragRoot,
+        env,
+        stdio: "ignore",
+        detached: true
     });
 
-    context.subscriptions.push(installCmd);
-    context.subscriptions.push(rebuildCmd);
-
-    console.log("[AI ToolShed] Activated successfully.");
+    vscode.window.showInformationMessage("AI ToolShed RAG server started.");
 }
 
 function deactivate() {
-    console.log("[AI ToolShed] Deactivated.");
+    try {
+        if (orchestratorProc) orchestratorProc.kill();
+    } catch (_) {}
+
+    try {
+        if (watcherProc) watcherProc.kill();
+    } catch (_) {}
 }
 
-module.exports = { activate, deactivate };
+module.exports = {
+    activate,
+    deactivate
+};
