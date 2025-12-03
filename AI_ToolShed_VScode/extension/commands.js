@@ -6,6 +6,10 @@ const vscode = require("vscode");
 let orchestratorProc = null;
 let watcherProc = null;
 
+
+// ------------------------------------------------------------
+// Start servers (orchestrator + watcher)
+// ------------------------------------------------------------
 function startServers(python, ragRoot, workspaceRoot) {
     const env = { ...process.env, TOOLS_HED_WORKSPACE: workspaceRoot };
 
@@ -26,11 +30,19 @@ function startServers(python, ragRoot, workspaceRoot) {
     });
 }
 
+
+// ------------------------------------------------------------
+// Stop servers cleanly
+// ------------------------------------------------------------
 function stopServers() {
     try { if (orchestratorProc) orchestratorProc.kill(); } catch (_) {}
     try { if (watcherProc) watcherProc.kill(); } catch (_) {}
 }
 
+
+// ------------------------------------------------------------
+// Restart both servers
+// ------------------------------------------------------------
 function restart(context, venvInfo) {
     stopServers();
 
@@ -44,11 +56,34 @@ function restart(context, venvInfo) {
     }
 
     startServers(python, ragRoot, workspaceRoot);
-    vscode.window.showInformationMessage("AI ToolShed RAG restarted.");
+    vscode.window.showInformationMessage("AI ToolShed: RAG restarted.");
 }
 
+
+// ------------------------------------------------------------
+// Rebuild the index
+// ------------------------------------------------------------
+function rebuildIndex(venvInfo) {
+    const installRoot = path.resolve(__dirname, "..");
+    const script = path.join(installRoot, "scripts", "rebuild_index.ps1");
+
+    cp.spawn("powershell.exe", [
+        "-ExecutionPolicy", "Bypass",
+        "-File", script
+    ], {
+        cwd: installRoot,
+        detached: true,
+        stdio: "ignore"
+    });
+
+    vscode.window.showInformationMessage("AI ToolShed: Rebuilding index…");
+}
+
+
+// ------------------------------------------------------------
 module.exports = {
-    restart,
     startServers,
-    stopServers
+    stopServers,
+    restart,
+    rebuildIndex
 };
