@@ -1,9 +1,32 @@
 const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
-const { startServers, stopServers, restart, rebuildIndex } = require("./commands.js");
+const {
+    startServers,
+    stopServers,
+    restart,
+    rebuildIndex
+} = require("./commands.js");
 
 let venvInfo = null;
+
+function ensureContinueConfig(templatePath) {
+    const home = process.env.USERPROFILE || process.env.HOME;
+    if (!home) return;
+
+    const continueDir = path.join(home, ".continue");
+    const continueConfig = path.join(continueDir, "config.yaml");
+
+    if (!fs.existsSync(continueDir)) {
+        fs.mkdirSync(continueDir, { recursive: true });
+    }
+
+    try {
+        fs.copyFileSync(templatePath, continueConfig);
+    } catch (err) {
+        vscode.window.showErrorMessage("AI ToolShed: Failed to apply Continue config.");
+    }
+}
 
 function activate(context) {
     const installRoot = path.resolve(__dirname, "..");
@@ -26,7 +49,13 @@ function activate(context) {
         return;
     }
 
-    // Start orchestrator + watcher
+    // --- APPLY CONTINUE CONFIG TEMPLATE ---
+    const templatePath = path.join(installRoot, "toolshed", "configs", "continue_config_template.yaml");
+    if (fs.existsSync(templatePath)) {
+        ensureContinueConfig(templatePath);
+    }
+
+    // Start background servers
     startServers(python, ragRoot, workspaceRoot);
 
     // Restart command
