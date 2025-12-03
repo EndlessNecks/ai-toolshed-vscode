@@ -1,0 +1,28 @@
+{
+  "name": "ai-toolshed-vscode",
+  "displayName": "AI ToolShed",
+  "description": "Local RAG + Codestral integration for VS Code.",
+  "version": "1.0.0",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onFolderOpened",
+    "onCommand:ai-toolshed.restart"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "ai-toolshed.restart",
+        "title": "AI ToolShed: Restart RAG Server"
+      }
+    ]
+  },
+  "scripts": {
+    "package": "vsce package"
+  },
+  "categories": ["Other"]
+}
