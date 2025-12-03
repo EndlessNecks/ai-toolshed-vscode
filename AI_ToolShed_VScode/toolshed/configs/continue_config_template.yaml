@@ -4,8 +4,8 @@ schema: v1
 
 default_model: codestral
 
-# Give Codestral access to YOUR ENTIRE WORKSPACE
-workspace_directory: "D:/AI_Workspace"
+# Workspace is set dynamically via TOOLS_HED_WORKSPACE
+workspace_directory: null
 
 # ===== Models =====
 
@@ -74,3 +74,11 @@ embeddings:
 indexing:
   enabled: true
   auto_index: true
+
+# ===== RAG + HTTP Context Provider =====
+
+context:
+  providers:
+    - provider: http
+      url: "http://127.0.0.1:5412/context"
+      max_items: 10
