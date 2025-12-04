@@ -21,6 +21,11 @@ function ensureContinueConfig(templatePath) {
         fs.mkdirSync(continueDir, { recursive: true });
     }
 
+    // Respect existing user configuration; only seed when missing
+    if (fs.existsSync(continueConfig)) {
+        return;
+    }
+
     try {
         fs.copyFileSync(templatePath, continueConfig);
     } catch (err) {

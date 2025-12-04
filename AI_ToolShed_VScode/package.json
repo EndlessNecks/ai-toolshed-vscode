@@ -29,20 +29,20 @@
 
   "activationEvents": [
     "onStartupFinished",
-    "onCommand:aiToolshed.install",
-    "onCommand:aiToolshed.rebuildIndex"
+    "onCommand:ai-toolshed.restart",
+    "onCommand:ai-toolshed.rebuildIndex"
   ],
 
-  "main": "./extension.js",
+  "main": "./extension/extension.js",
 
   "contributes": {
     "commands": [
       {
-        "command": "aiToolshed.install",
-        "title": "AI ToolShed: Install / Reinitialize"
+        "command": "ai-toolshed.restart",
+        "title": "AI ToolShed: Restart RAG Server"
       },
       {
-        "command": "aiToolshed.rebuildIndex",
+        "command": "ai-toolshed.rebuildIndex",
         "title": "AI ToolShed: Rebuild RAG Index"
       }
     ]
@@ -54,7 +54,7 @@
   },
 
   "files": [
-    "extension.js",
+    "extension/**/*.js",
     "scripts/**/*",
     "toolshed/**/*",
     "media/**/*",

@@ -11,6 +11,7 @@ All other directories are ignored.
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 from qdrant_client.http import models as qmodels
@@ -29,6 +30,10 @@ from rag_engine.qdrant_init import (
 # Absolute indexing root: INSTALL_ROOT/workspace_files
 # ------------------------------------------------------------
 def get_index_root() -> Path:
+    env_root = os.environ.get("TOOLS_HED_WORKSPACE")
+    if env_root:
+        return Path(env_root).resolve()
+
     return Path(get_install_root()) / "workspace_files"
 
 

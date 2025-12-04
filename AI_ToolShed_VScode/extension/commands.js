@@ -5,6 +5,23 @@ const vscode = require("vscode");
 
 let orchestratorProc = null;
 let watcherProc = null;
+const output = vscode.window.createOutputChannel("AI ToolShed");
+
+function attachLogging(proc, label) {
+    if (!proc) return;
+
+    proc.stdout?.on("data", (data) => {
+        output.appendLine(`[${label}] ${data.toString().trimEnd()}`);
+    });
+
+    proc.stderr?.on("data", (data) => {
+        output.appendLine(`[${label}][err] ${data.toString().trimEnd()}`);
+    });
+
+    proc.on("exit", (code, signal) => {
+        output.appendLine(`[${label}] exited (code=${code} signal=${signal})`);
+    });
+}
 
 
 // ------------------------------------------------------------
@@ -17,17 +34,21 @@ function startServers(python, ragRoot, workspaceRoot) {
     orchestratorProc = cp.spawn(python, [orch], {
         cwd: ragRoot,
         env,
-        stdio: "ignore",
-        detached: true
+        stdio: ["ignore", "pipe", "pipe"],
+        detached: false
     });
+    attachLogging(orchestratorProc, "orchestrator");
 
     const watch = path.join(ragRoot, "watcher.py");
     watcherProc = cp.spawn(python, [watch], {
         cwd: ragRoot,
         env,
-        stdio: "ignore",
-        detached: true
+        stdio: ["ignore", "pipe", "pipe"],
+        detached: false
     });
+    attachLogging(watcherProc, "watcher");
+
+    output.show(true);
 }
 
 
