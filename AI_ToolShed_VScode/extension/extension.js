@@ -5,12 +5,22 @@ const {
     startServers,
     stopServers,
     restart,
-    rebuildIndex
+    rebuildIndex,
+    getOutputChannel
 } = require("./commands.js");
+const yaml = require("yaml");
 
 let venvInfo = null;
 
-function ensureContinueConfig(templatePath) {
+function resolvePython(fallback) {
+    if (process.env.TOOLS_HED_PYTHON) {
+        return process.env.TOOLS_HED_PYTHON;
+    }
+
+    return fallback || (process.platform === "win32" ? "python.exe" : "python3");
+}
+
+function ensureContinueConfig(templatePath, workspaceRoot) {
     const home = process.env.USERPROFILE || process.env.HOME;
     if (!home) return;
 
@@ -27,9 +37,18 @@ function ensureContinueConfig(templatePath) {
     }
 
     try {
-        fs.copyFileSync(templatePath, continueConfig);
+        const template = fs.readFileSync(templatePath, "utf8");
+        const parsed = yaml.parse(template);
+
+        if (workspaceRoot) {
+            parsed.workspace_directory = workspaceRoot;
+        }
+
+        const serialized = yaml.stringify(parsed);
+        fs.writeFileSync(continueConfig, serialized, "utf8");
     } catch (err) {
         vscode.window.showErrorMessage("AI ToolShed: Failed to apply Continue config.");
+        getOutputChannel().appendLine(`[extension] Failed to seed Continue config: ${err.message}`);
     }
 }
 
@@ -37,17 +56,29 @@ function activate(context) {
     const installRoot = path.resolve(__dirname, "..");
     const configDir = path.join(installRoot, "configs");
     const venvInfoPath = path.join(configDir, "venv_info.json");
+    const output = getOutputChannel();
 
-    if (!fs.existsSync(venvInfoPath)) {
-        vscode.window.showErrorMessage("AI ToolShed: Missing venv_info.json. Run setup.ps1.");
-        return;
+    if (fs.existsSync(venvInfoPath)) {
+        venvInfo = JSON.parse(fs.readFileSync(venvInfoPath, "utf8"));
+    } else {
+        const toolshedRoot = path.join(installRoot, "toolshed");
+        venvInfo = {
+            install_root: installRoot,
+            toolshed_root: toolshedRoot,
+            rag_engine_root: path.join(toolshedRoot, "rag_engine"),
+            venv_python: null
+        };
+
+        output.appendLine("[extension] venv_info.json missing; using workspace defaults.");
     }
 
-    venvInfo = JSON.parse(fs.readFileSync(venvInfoPath, "utf8"));
-
-    const python = venvInfo.venv_python;
+    const python = resolvePython(venvInfo.venv_python);
     const ragRoot = venvInfo.rag_engine_root;
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+    output.appendLine(`[extension] Python: ${python}`);
+    output.appendLine(`[extension] RAG root: ${ragRoot}`);
+    output.appendLine(`[extension] Workspace: ${workspaceRoot}`);
 
     if (!workspaceRoot) {
         vscode.window.showErrorMessage("AI ToolShed: No workspace open.");
@@ -57,20 +88,20 @@ function activate(context) {
     // --- APPLY CONTINUE CONFIG TEMPLATE ---
     const templatePath = path.join(installRoot, "toolshed", "configs", "continue_config_template.yaml");
     if (fs.existsSync(templatePath)) {
-        ensureContinueConfig(templatePath);
+        ensureContinueConfig(templatePath, workspaceRoot);
     }
 
     // Start background servers
-    startServers(python, ragRoot, workspaceRoot);
+    startServers({ python, ragRoot, workspaceRoot });
 
     // Restart command
     const restartCmd = vscode.commands.registerCommand("ai-toolshed.restart", () => {
-        restart(context, venvInfo);
+        restart({ python, ragRoot, workspaceRoot });
     });
 
     // Rebuild index command
     const rebuildCmd = vscode.commands.registerCommand("ai-toolshed.rebuildIndex", () => {
-        rebuildIndex(venvInfo);
+        rebuildIndex({ python, ragRoot, workspaceRoot });
     });
 
     context.subscriptions.push(restartCmd);

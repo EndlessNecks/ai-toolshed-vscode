@@ -21,32 +21,61 @@ function attachLogging(proc, label) {
     proc.on("exit", (code, signal) => {
         output.appendLine(`[${label}] exited (code=${code} signal=${signal})`);
     });
+
+    proc.on("error", (err) => {
+        output.appendLine(`[${label}] failed to start: ${err.message}`);
+    });
 }
 
 
 // ------------------------------------------------------------
 // Start servers (orchestrator + watcher)
 // ------------------------------------------------------------
-function startServers(python, ragRoot, workspaceRoot) {
+function startServers(runtime) {
+    const { python, ragRoot, workspaceRoot } = runtime;
+
+    if (!python) {
+        vscode.window.showErrorMessage("AI ToolShed: No Python interpreter configured.");
+        return;
+    }
+
+    if (!ragRoot) {
+        vscode.window.showErrorMessage("AI ToolShed: RAG engine path not configured.");
+        return;
+    }
+
+    if (!workspaceRoot) {
+        vscode.window.showErrorMessage("AI ToolShed: No workspace open.");
+        return;
+    }
+
     const env = { ...process.env, TOOLS_HED_WORKSPACE: workspaceRoot };
 
     const orch = path.join(ragRoot, "orchestrator.py");
-    orchestratorProc = cp.spawn(python, [orch], {
-        cwd: ragRoot,
-        env,
-        stdio: ["ignore", "pipe", "pipe"],
-        detached: false
-    });
-    attachLogging(orchestratorProc, "orchestrator");
+    if (fs.existsSync(orch)) {
+        orchestratorProc = cp.spawn(python, [orch], {
+            cwd: ragRoot,
+            env,
+            stdio: ["ignore", "pipe", "pipe"],
+            detached: false
+        });
+        attachLogging(orchestratorProc, "orchestrator");
+    } else {
+        vscode.window.showErrorMessage("AI ToolShed: orchestrator.py not found.");
+    }
 
     const watch = path.join(ragRoot, "watcher.py");
-    watcherProc = cp.spawn(python, [watch], {
-        cwd: ragRoot,
-        env,
-        stdio: ["ignore", "pipe", "pipe"],
-        detached: false
-    });
-    attachLogging(watcherProc, "watcher");
+    if (fs.existsSync(watch)) {
+        watcherProc = cp.spawn(python, [watch], {
+            cwd: ragRoot,
+            env,
+            stdio: ["ignore", "pipe", "pipe"],
+            detached: false
+        });
+        attachLogging(watcherProc, "watcher");
+    } else {
+        vscode.window.showErrorMessage("AI ToolShed: watcher.py not found.");
+    }
 
     output.show(true);
 }
@@ -64,19 +93,11 @@ function stopServers() {
 // ------------------------------------------------------------
 // Restart both servers
 // ------------------------------------------------------------
-function restart(context, venvInfo) {
-    stopServers();
-
-    const python = venvInfo.venv_python;
-    const ragRoot = venvInfo.rag_engine_root;
-
+function restart(runtime) {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceRoot) {
-        vscode.window.showErrorMessage("AI ToolShed: No workspace open.");
-        return;
-    }
 
-    startServers(python, ragRoot, workspaceRoot);
+    stopServers();
+    startServers({ ...runtime, workspaceRoot });
     vscode.window.showInformationMessage("AI ToolShed: RAG restarted.");
 }
 
@@ -84,15 +105,25 @@ function restart(context, venvInfo) {
 // ------------------------------------------------------------
 // Rebuild the index
 // ------------------------------------------------------------
-function rebuildIndex(venvInfo) {
-    const installRoot = path.resolve(__dirname, "..");
-    const script = path.join(installRoot, "scripts", "rebuild_index.ps1");
+function rebuildIndex(runtime) {
+    const { python, ragRoot, workspaceRoot } = runtime;
 
-    cp.spawn("powershell.exe", [
-        "-ExecutionPolicy", "Bypass",
-        "-File", script
-    ], {
-        cwd: installRoot,
+    if (!python) {
+        vscode.window.showErrorMessage("AI ToolShed: No Python interpreter configured.");
+        return;
+    }
+
+    if (!ragRoot) {
+        vscode.window.showErrorMessage("AI ToolShed: RAG engine path not configured.");
+        return;
+    }
+
+    const script = path.join(ragRoot, "indexer.py");
+    const env = { ...process.env, TOOLS_HED_WORKSPACE: workspaceRoot };
+
+    cp.spawn(python, [script], {
+        cwd: ragRoot,
+        env,
         detached: true,
         stdio: "ignore"
     });
@@ -106,5 +137,6 @@ module.exports = {
     startServers,
     stopServers,
     restart,
-    rebuildIndex
+    rebuildIndex,
+    getOutputChannel: () => output
 };
