@@ -1,11 +1,13 @@
 const cp = require("child_process");
 const path = require("path");
 const fs = require("fs");
+const fse = require("fs-extra");
 const vscode = require("vscode");
 
 let orchestratorProc = null;
 let watcherProc = null;
 const output = vscode.window.createOutputChannel("AI ToolShed");
+const EXCLUDE_FOLDERS = new Set([".git", "node_modules", "__pycache__", ".venv", "venv"]);
 
 function attachLogging(proc, label) {
     if (!proc) return;
@@ -94,7 +96,7 @@ function stopServers() {
 // Restart both servers
 // ------------------------------------------------------------
 function restart(runtime) {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const workspaceRoot = runtime.workspaceRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
     stopServers();
     startServers({ ...runtime, workspaceRoot });
@@ -133,10 +135,64 @@ function rebuildIndex(runtime) {
 
 
 // ------------------------------------------------------------
+// Import current VS Code workspace into <install_root>/workspace_files
+// ------------------------------------------------------------
+async function importWorkspace(runtime) {
+    const { workspaceRoot, installRoot } = runtime;
+
+    if (!workspaceRoot) {
+        vscode.window.showErrorMessage("AI ToolShed: No workspace open to import.");
+        return;
+    }
+
+    if (!installRoot) {
+        vscode.window.showErrorMessage("AI ToolShed: Install root not configured.");
+        return;
+    }
+
+    const destRoot = path.join(installRoot, "workspace_files");
+    const srcRoot = workspaceRoot;
+
+    const filter = (src) => {
+        const rel = path.relative(srcRoot, src);
+        if (rel.startsWith("..")) return false;
+
+        const parts = rel.split(path.sep);
+        if (parts.some((p) => EXCLUDE_FOLDERS.has(p))) return false;
+
+        return true;
+    };
+
+    try {
+        await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: "AI ToolShed: Importing workspace…",
+            },
+            async () => {
+                await fse.ensureDir(destRoot);
+                await fse.emptyDir(destRoot);
+                await fse.copy(srcRoot, destRoot, { filter });
+            }
+        );
+
+        output.appendLine(`[import] Copied workspace from ${srcRoot} to ${destRoot}`);
+        vscode.window.showInformationMessage(
+            "AI ToolShed: Workspace imported. Run 'AI ToolShed: Rebuild RAG Index' to refresh the index."
+        );
+    } catch (err) {
+        output.appendLine(`[import][err] ${err.message}`);
+        vscode.window.showErrorMessage("AI ToolShed: Failed to import workspace. See output for details.");
+    }
+}
+
+
+// ------------------------------------------------------------
 module.exports = {
     startServers,
     stopServers,
     restart,
     rebuildIndex,
+    importWorkspace,
     getOutputChannel: () => output
 };

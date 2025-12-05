@@ -30,7 +30,8 @@
   "activationEvents": [
     "onStartupFinished",
     "onCommand:ai-toolshed.restart",
-    "onCommand:ai-toolshed.rebuildIndex"
+    "onCommand:ai-toolshed.rebuildIndex",
+    "onCommand:ai-toolshed.importWorkspace"
   ],
 
   "main": "./extension/extension.js",
@@ -44,6 +45,10 @@
       {
         "command": "ai-toolshed.rebuildIndex",
         "title": "AI ToolShed: Rebuild RAG Index"
+      },
+      {
+        "command": "ai-toolshed.importWorkspace",
+        "title": "AI ToolShed: Import Current Project"
       }
     ]
   },

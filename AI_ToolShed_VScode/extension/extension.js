@@ -6,6 +6,7 @@ const {
     stopServers,
     restart,
     rebuildIndex,
+    importWorkspace,
     getOutputChannel
 } = require("./commands.js");
 const yaml = require("yaml");
@@ -75,10 +76,12 @@ function activate(context) {
     const python = resolvePython(venvInfo.venv_python);
     const ragRoot = venvInfo.rag_engine_root;
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const workspaceFilesRoot = path.join(installRoot, "workspace_files");
 
     output.appendLine(`[extension] Python: ${python}`);
     output.appendLine(`[extension] RAG root: ${ragRoot}`);
     output.appendLine(`[extension] Workspace: ${workspaceRoot}`);
+    output.appendLine(`[extension] Workspace files: ${workspaceFilesRoot}`);
 
     if (!workspaceRoot) {
         vscode.window.showErrorMessage("AI ToolShed: No workspace open.");
@@ -92,20 +95,27 @@ function activate(context) {
     }
 
     // Start background servers
-    startServers({ python, ragRoot, workspaceRoot });
+    startServers({ python, ragRoot, workspaceRoot: workspaceFilesRoot });
 
     // Restart command
     const restartCmd = vscode.commands.registerCommand("ai-toolshed.restart", () => {
-        restart({ python, ragRoot, workspaceRoot });
+        restart({ python, ragRoot, workspaceRoot: workspaceFilesRoot });
     });
 
     // Rebuild index command
     const rebuildCmd = vscode.commands.registerCommand("ai-toolshed.rebuildIndex", () => {
-        rebuildIndex({ python, ragRoot, workspaceRoot });
+        rebuildIndex({ python, ragRoot, workspaceRoot: workspaceFilesRoot });
+    });
+
+    // Import workspace command
+    const importCmd = vscode.commands.registerCommand("ai-toolshed.importWorkspace", () => {
+        const currentWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        importWorkspace({ installRoot, workspaceRoot: currentWorkspace });
     });
 
     context.subscriptions.push(restartCmd);
     context.subscriptions.push(rebuildCmd);
+    context.subscriptions.push(importCmd);
 }
 
 function deactivate() {
