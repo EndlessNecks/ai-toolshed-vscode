@@ -188,11 +188,133 @@ async function importWorkspace(runtime) {
 
 
 // ------------------------------------------------------------
+// Remove imported projects/files from <install_root>/workspace_files
+// ------------------------------------------------------------
+async function purgeIndexEntries(targets, runtime) {
+    const { python, ragRoot, workspaceRoot } = runtime;
+
+    if (!python || !ragRoot || targets.length === 0) {
+        return;
+    }
+
+    const script = path.join(ragRoot, "indexer.py");
+    const env = { ...process.env, TOOLS_HED_WORKSPACE: workspaceRoot };
+
+    return new Promise((resolve, reject) => {
+        const proc = cp.spawn(python, [script, "--delete", ...targets], {
+            cwd: ragRoot,
+            env,
+            stdio: ["ignore", "pipe", "pipe"],
+            detached: false
+        });
+
+        proc.stdout?.on("data", (data) => {
+            output.appendLine(`[prune] ${data.toString().trimEnd()}`);
+        });
+
+        proc.stderr?.on("data", (data) => {
+            output.appendLine(`[prune][err] ${data.toString().trimEnd()}`);
+        });
+
+        proc.on("exit", (code) => {
+            if (code === 0) {
+                resolve();
+            } else {
+                reject(new Error(`Index cleanup exited with code ${code}`));
+            }
+        });
+
+        proc.on("error", (err) => {
+            reject(err);
+        });
+    });
+}
+
+async function removeImportedProjects(runtime) {
+    const { installRoot, python, ragRoot } = runtime;
+    const workspaceRoot = path.join(installRoot, "workspace_files");
+
+    if (!installRoot || !fs.existsSync(workspaceRoot)) {
+        vscode.window.showErrorMessage("AI ToolShed: No imported workspace to clean.");
+        return;
+    }
+
+    const entries = await fs.promises.readdir(workspaceRoot, { withFileTypes: true });
+    const candidates = entries
+        .filter((e) => e.isDirectory() || e.isFile())
+        .map((e) => ({
+            label: e.name,
+            description: e.isDirectory() ? "Folder" : "File",
+            targetPath: path.join(workspaceRoot, e.name)
+        }));
+
+    if (candidates.length === 0) {
+        vscode.window.showInformationMessage("AI ToolShed: No imported projects to remove.");
+        return;
+    }
+
+    const selection = await vscode.window.showQuickPick(candidates, {
+        canPickMany: true,
+        placeHolder: "Select imported projects/files to remove from AI ToolShed workspace"
+    });
+
+    if (!selection || selection.length === 0) {
+        return;
+    }
+
+    const purgeChoice = await vscode.window.showQuickPick(
+        [
+            { label: "Remove files only", purge: false },
+            { label: "Remove files and indexed data", purge: true }
+        ],
+        { placeHolder: "Also delete indexed vectors for the selected entries?" }
+    );
+
+    if (!purgeChoice) {
+        return;
+    }
+
+    const targets = selection.map((s) => s.targetPath);
+
+    if (purgeChoice.purge && (!python || !ragRoot)) {
+        vscode.window.showWarningMessage(
+            "AI ToolShed: Python/RAG paths missing; removing files only."
+        );
+    }
+
+    try {
+        await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: "AI ToolShed: Removing imported projects…",
+            },
+            async () => {
+                for (const target of targets) {
+                    await fse.remove(target);
+                    output.appendLine(`[prune] Removed ${target}`);
+                }
+
+                if (purgeChoice.purge) {
+                    await purgeIndexEntries(targets, { python, ragRoot, workspaceRoot });
+                }
+            }
+        );
+
+        vscode.window.showInformationMessage("AI ToolShed: Selected imports removed.");
+    } catch (err) {
+        output.appendLine(`[prune][err] ${err.message}`);
+        vscode.window.showErrorMessage("AI ToolShed: Failed to remove selected imports. See output for details.");
+    }
+}
+
+
+// ------------------------------------------------------------
 module.exports = {
     startServers,
     stopServers,
     restart,
     rebuildIndex,
     importWorkspace,
+    removeImportedProjects,
     getOutputChannel: () => output
 };

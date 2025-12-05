@@ -31,7 +31,8 @@
     "onStartupFinished",
     "onCommand:ai-toolshed.restart",
     "onCommand:ai-toolshed.rebuildIndex",
-    "onCommand:ai-toolshed.importWorkspace"
+    "onCommand:ai-toolshed.importWorkspace",
+    "onCommand:ai-toolshed.removeImportedProjects"
   ],
 
   "main": "./extension/extension.js",
@@ -49,6 +50,10 @@
       {
         "command": "ai-toolshed.importWorkspace",
         "title": "AI ToolShed: Import Current Project"
+      },
+      {
+        "command": "ai-toolshed.removeImportedProjects",
+        "title": "AI ToolShed: Remove Imported Projects"
       }
     ]
   },

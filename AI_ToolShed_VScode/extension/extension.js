@@ -7,6 +7,7 @@ const {
     restart,
     rebuildIndex,
     importWorkspace,
+    removeImportedProjects,
     getOutputChannel
 } = require("./commands.js");
 const yaml = require("yaml");
@@ -113,9 +114,15 @@ function activate(context) {
         importWorkspace({ installRoot, workspaceRoot: currentWorkspace });
     });
 
+    // Remove imported projects command
+    const removeCmd = vscode.commands.registerCommand("ai-toolshed.removeImportedProjects", () => {
+        removeImportedProjects({ installRoot, python, ragRoot, workspaceRoot: workspaceFilesRoot });
+    });
+
     context.subscriptions.push(restartCmd);
     context.subscriptions.push(rebuildCmd);
     context.subscriptions.push(importCmd);
+    context.subscriptions.push(removeCmd);
 }
 
 function deactivate() {
