@@ -83,6 +83,8 @@ def start_watcher():
         print(f"[watcher] workspace_files missing: {root}")
         return
 
+    print(f"[watcher] Monitoring workspace at: {root}")
+
     handler = RAGEventHandler()
     observer = Observer()
     observer.schedule(handler, str(root), recursive=True)

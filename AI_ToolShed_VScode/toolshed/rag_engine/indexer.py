@@ -11,6 +11,7 @@ All other directories are ignored.
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 from qdrant_client.http import models as qmodels
@@ -29,6 +30,10 @@ from rag_engine.qdrant_init import (
 # Absolute indexing root: INSTALL_ROOT/workspace_files
 # ------------------------------------------------------------
 def get_index_root() -> Path:
+    env_root = os.environ.get("TOOLS_HED_WORKSPACE")
+    if env_root:
+        return Path(env_root).resolve()
+
     return Path(get_install_root()) / "workspace_files"
 
 
@@ -132,5 +137,28 @@ def build_full_index():
 
 
 if __name__ == "__main__":
-    build_full_index()
-    print("Full index build complete.")
+    import argparse
+
+    parser = argparse.ArgumentParser(description="AI ToolShed index maintenance")
+    parser.add_argument(
+        "--delete",
+        nargs="+",
+        help="Paths under the workspace root to delete from the index",
+    )
+
+    args = parser.parse_args()
+
+    if args.delete:
+        for target in args.delete:
+            path = Path(target)
+            if path.is_dir():
+                for p in path.rglob("*"):
+                    if p.is_file():
+                        delete_file(p)
+            else:
+                delete_file(path)
+
+        print("Selected paths removed from the index.")
+    else:
+        build_full_index()
+        print("Full index build complete.")

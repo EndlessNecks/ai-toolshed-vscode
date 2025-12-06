@@ -29,21 +29,31 @@
 
   "activationEvents": [
     "onStartupFinished",
-    "onCommand:aiToolshed.install",
-    "onCommand:aiToolshed.rebuildIndex"
+    "onCommand:ai-toolshed.restart",
+    "onCommand:ai-toolshed.rebuildIndex",
+    "onCommand:ai-toolshed.importWorkspace",
+    "onCommand:ai-toolshed.removeImportedProjects"
   ],
 
-  "main": "./extension.js",
+  "main": "./extension/extension.js",
 
   "contributes": {
     "commands": [
       {
-        "command": "aiToolshed.install",
-        "title": "AI ToolShed: Install / Reinitialize"
+        "command": "ai-toolshed.restart",
+        "title": "AI ToolShed: Restart RAG Server"
       },
       {
-        "command": "aiToolshed.rebuildIndex",
+        "command": "ai-toolshed.rebuildIndex",
         "title": "AI ToolShed: Rebuild RAG Index"
+      },
+      {
+        "command": "ai-toolshed.importWorkspace",
+        "title": "AI ToolShed: Import Current Project"
+      },
+      {
+        "command": "ai-toolshed.removeImportedProjects",
+        "title": "AI ToolShed: Remove Imported Projects"
       }
     ]
   },
@@ -54,7 +64,7 @@
   },
 
   "files": [
-    "extension.js",
+    "extension/**/*.js",
     "scripts/**/*",
     "toolshed/**/*",
     "media/**/*",

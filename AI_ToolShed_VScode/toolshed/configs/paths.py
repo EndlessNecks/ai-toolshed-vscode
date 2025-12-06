@@ -11,6 +11,7 @@ All indexing + RAG operations target ONLY:
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 
@@ -20,11 +21,17 @@ from pathlib import Path
 def _load_info():
     here = Path(__file__).resolve()
     configs = here.parent
-    root = configs.parent
     info = configs / "venv_info.json"
-    if not info.exists():
-        raise RuntimeError("venv_info.json missing. Run setup.ps1.")
-    return json.loads(info.read_text())
+
+    if info.exists():
+        return json.loads(info.read_text())
+
+    # Development fallback: use repo root if the installer has not run yet
+    default_root = os.environ.get("AI_TOOLSHED_INSTALL_ROOT")
+    if not default_root:
+        default_root = here.parents[2]  # AI_ToolShed_VScode root
+
+    return {"install_root": str(Path(default_root).resolve())}
 
 
 _INFO = _load_info()
